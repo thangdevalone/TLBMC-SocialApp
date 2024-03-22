@@ -27,7 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     '14.225.217.195',
-    'api-tlbmc.thangdev.online'
+    'api-tlbmc.thangdev.online',
+    '127.0.0.1'
 ]
 
 
