@@ -2,14 +2,15 @@ import json
 import re
 from django.shortcuts import render
 # Create your views here.
-from rest_framework import status,serializers
+from rest_framework import status,serializers,permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import UserSerializer,UserDetailSerializer,CustomUserUpdateSerializer,ImageSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 import random
-
+from django.contrib.auth import get_user_model
+from .permissions import IsOwnerOrReadonly
 from django.core.mail import send_mail
 from django.conf import settings
 from .models import CustomUser,Image,CustomUserManager
@@ -28,6 +29,7 @@ from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from rest_framework.exceptions import ValidationError
 from django.core.signing import dumps,loads
+from django.contrib.auth.hashers import check_password
 
 otp_storage={}
 class UserRegistrationAPIView(APIView):
@@ -189,3 +191,44 @@ def reset_password_view(request, token):
     return Response({"message": "Password reset successfully",
                      "status": status.HTTP_200_OK},
                     status=status.HTTP_200_OK)
+    
+def strong_password(password):
+    print(password)
+    if len(password) < 8 or not re.search(r'[A-Z]', password):
+        return False
+    return True
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadonly])
+def change_password(request, pk):
+    if request.method == 'POST':
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        
+        if not strong_password(new_password):
+            return Response({'success': False, 'message': 'New password must be at least 8 characters long and contain at least one uppercase letter.',
+                             "status": status.HTTP_400_BAD_REQUEST},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        UserAccount = get_user_model()
+        try:
+            user_account = UserAccount.objects.get(email=pk)
+        except UserAccount.DoesNotExist:
+            return Response({'success': False, 'message': 'User not found.',
+                             "status": status.HTTP_404_NOT_FOUND},
+                            status=status.HTTP_404_NOT_FOUND)
+        
+        if not check_password(current_password, user_account.password):
+            return Response({'success': False, 'message': 'Current password is incorrect.',
+                             "status": status.HTTP_400_BAD_REQUEST},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        user_account.set_password(new_password)
+        user_account.save()
+        
+        return Response({'success': True, 'message': 'Password changed successfully.',
+                         "status": status.HTTP_200_OK}, status=status.HTTP_200_OK)
+
+    return Response({'success': False, 'message': 'Invalid request method.',
+                     "status": status.HTTP_400_BAD_REQUEST},
+                    status=status.HTTP_400_BAD_REQUEST)
