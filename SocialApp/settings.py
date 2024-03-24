@@ -166,3 +166,4 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 BACKEND_URL = "http://127.0.0.1:8000"
+SECURITY_PASSWORD_SALT="abcd"

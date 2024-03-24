@@ -9,9 +9,10 @@ from .serializers import UserSerializer,UserDetailSerializer,CustomUserUpdateSer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 import random
+
 from django.core.mail import send_mail
 from django.conf import settings
-from .models import CustomUser,Image
+from .models import CustomUser,Image,CustomUserManager
 from .permissions import IsAdminUser
 import base64
 from django.core.files.base import ContentFile
@@ -24,6 +25,9 @@ from django.core.serializers.json import DjangoJSONEncoder
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.hashers import make_password
 from django.core.exceptions import ValidationError
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+from rest_framework.exceptions import ValidationError
+from django.core.signing import dumps,loads
 
 otp_storage={}
 class UserRegistrationAPIView(APIView):
@@ -122,6 +126,7 @@ class UploadRelatedImageView(APIView):
         return Response({'error': 'No image data provided'}, status=status.HTTP_400_BAD_REQUEST)
     
 
+
 @api_view(['POST'])
 def forgot_password_view(request):
     serializer = ForgotPasswordSerializer(data=request.data)
@@ -134,13 +139,21 @@ def forgot_password_view(request):
                             status=status.HTTP_404_NOT_FOUND)
 
         # Generate reset token
-        token_data = {"email": email}
-        token = json.dumps(token_data, cls=DjangoJSONEncoder)
+        try:
+        # refresh = RefreshToken.for_user(user)
+        # # reset_token = str(refresh.access_token)
+            data={"email":user.email}
+            token=dumps(data, key=settings.SECURITY_PASSWORD_SALT)
 
-        # Send email
+        except TokenError as e:
+            return Response({"error": "Failed to generate reset token",
+                            "status": status.HTTP_500_INTERNAL_SERVER_ERROR},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         email_subject = "Password Reset Request"
-        email_message = f"Here's an email about resetting the password for your account: {email}\n"
-        email_message += f"Click the following link to reset your password: {settings.BACKEND_URL}/reset-password/{token}"
+        email_message = f"Here's an email about forgetting the password for account: {user.email} \n "
+        email_message += f"Click the following link to reset your password: {settings.BACKEND_URL}/api/forgot/reset-password/{token}"
+
         send_mail(
             email_subject,
             email_message,
@@ -149,37 +162,30 @@ def forgot_password_view(request):
             fail_silently=False,
         )
 
-        return Response({"message": "Password reset email sent successfully"},
+        return Response({"message": "Password reset email sent successfully",
+                        "status": status.HTTP_200_OK},
                         status=status.HTTP_200_OK)
-    else:
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+   
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def reset_password_view(request, token):
     serializer = ResetPasswordSerializer(data=request.data)
-    if serializer.is_valid():
-        try:
-            token_data = json.loads(token, encoding=settings.DEFAULT_CHARSET)
-            user_id = token_data["UserID"]
-            user = CustomUser.objects.get(pk=user_id)
-        except (json.JSONDecodeError, CustomUser.DoesNotExist):
-            return Response({"error": "Invalid reset token",
-                             "status": status.HTTP_400_BAD_REQUEST},
-                            status=status.HTTP_400_BAD_REQUEST)
+    serializer.is_valid(raise_exception=True)
+    try:
+        email = loads(token, key=settings.SECURITY_PASSWORD_SALT)["email"]
+        user = CustomUser.objects.get(email=email)
+    except (TypeError, ValueError, OverflowError, CustomUser.DoesNotExist):
+        return Response({"error": "Invalid reset token",
+                         "status": status.HTTP_400_BAD_REQUEST},
+                        status=status.HTTP_400_BAD_REQUEST)
+    new_password = serializer.validated_data['password']
+    if not new_password:
+        raise ValidationError("New password is required")
+    hashed_password = make_password(new_password)
+    user.set_password(new_password)
+    user.save()
+    refresh = RefreshToken.for_user(user)
 
-        new_password = serializer.validated_data['password']
-        if not new_password:
-            raise ValidationError("New password is required")
-
-        hashed_password = make_password(new_password)
-        user.set_password(new_password)
-        user.save()
-
-        refresh = RefreshToken.for_user(user)
-
-        return Response({"message": "Password reset successfully",
-                         "status": status.HTTP_200_OK},
-                        status=status.HTTP_200_OK)
-    else:
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response({"message": "Password reset successfully",
+                     "status": status.HTTP_200_OK},
+                    status=status.HTTP_200_OK)
