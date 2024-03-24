@@ -8,6 +8,8 @@ from .models import Post, Like, Wall,LikeComment
 from .serializers import PostSerializer, PostCreateSerializer, LikeSerializer, WallSerializer
 from rest_framework.decorators import api_view
 from rest_framework import status
+from rest_framework.views import APIView
+from .models import Comment
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
@@ -59,3 +61,18 @@ class ShareViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+class CommentDeleteAPIView(APIView):
+    def delete(self, request, comment_id):
+        # Retrieve the comment
+        try:
+            comment = Comment.objects.get(pk=comment_id)
+        except Comment.DoesNotExist:
+            return Response({"message": "Comment does not exist"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if the user making the request is the owner of the comment
+        if comment.author != request.user:
+            return Response({"message": "You are not authorized to delete this comment"}, status=status.HTTP_403_FORBIDDEN)
+
+        # Delete the comment
+        comment.delete()
+        return Response({"message": "Comment deleted successfully"}, status=status.HTTP_204_NO_CONTENT)

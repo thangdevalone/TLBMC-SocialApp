@@ -223,7 +223,7 @@ def forgot_password_view(request):
 
         email_subject = "Password Reset Request"
         email_message = f"Here's an email about forgetting the password for account: {user.email} \n "
-        email_message += f"Click the following link to reset your password: {settings.BACKEND_URL}/api/forgot/reset-password/{token}"
+        email_message += f"Click the following link to reset your password: {settings.BACKEND_URL}/forgot/reset-password/{token}"
 
         send_mail(
             email_subject,
