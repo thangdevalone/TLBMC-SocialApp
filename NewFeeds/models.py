@@ -1,6 +1,7 @@
 from django.db import models
 from Account.models import CustomUser
 from django.utils import timezone
+from django.dispatch import receiver
 # Create your models here.
 class Post(models.Model):
     author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
@@ -38,3 +39,7 @@ class Like(models.Model):
 class Wall(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='shares')
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    
+@receiver(models.signals.pre_delete, sender=Post)
+def delete_comments_on_post_delete(sender, instance, **kwargs):
+    instance.comments.all().delete()

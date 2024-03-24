@@ -2,7 +2,7 @@ from django.shortcuts import render
 
 # Create your views here.
 from rest_framework import viewsets
-from Account.permissions import IsAdminUser
+from Account.permissions import IsUser
 from rest_framework.response import Response
 from .models import Post, Like, Wall,LikeComment
 from .serializers import PostSerializer, PostCreateSerializer, LikeSerializer, WallSerializer
@@ -11,7 +11,7 @@ from rest_framework import status
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsUser]
     
     def get_queryset(self):
         # Sắp xếp các bài viết theo thời gian tạo, từ gần nhất đến xa nhất
@@ -55,7 +55,7 @@ def like_post(request, post_id):
 class ShareViewSet(viewsets.ModelViewSet):
     queryset = Wall.objects.all()
     serializer_class = WallSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsUser]
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)

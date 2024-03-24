@@ -1,6 +1,6 @@
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
-from .models import CustomUser,Image
+from .models import CustomUser,Image,Friendship
 import base64
 from django.conf import settings
 import os
@@ -78,4 +78,8 @@ class CustomUserUpdateSerializer(serializers.ModelSerializer):
             instance.save()
 
         return instance
-    
+class FriendshipSerializer(serializers.ModelSerializer):
+    from_user=CustomUserSerializer()
+    class Meta:
+        model = Friendship
+        fields = ['id','from_user']

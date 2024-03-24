@@ -37,6 +37,7 @@ AUTH_USER_MODEL = 'Account.CustomUser'
 
 INSTALLED_APPS = [
     "daphne",
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -47,7 +48,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_yasg',
     'Account',
-    'NewFeeds'
+    'NewFeeds',
+    "MessengerChat",
+    "Course",
+    
 ]
 from datetime import timedelta
 
@@ -76,7 +80,7 @@ CORS_ALLOWED_ORIGINS = [
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR,"templates")],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
