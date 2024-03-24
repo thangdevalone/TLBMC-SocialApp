@@ -2,21 +2,35 @@
 import re
 from django.db.models import Q
 
-# Create your views here.
-from random import sample
+# Create your views her
+import base64
+from random import sample, random
+from django.conf import settings
+from django.contrib.auth import authenticate
+from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
+from django.core.serializers import serialize
+from django.core.signing import dumps, loads
+from django.http import JsonResponse
+from django.core.files.base import ContentFile
 from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import UserSerializer,UserDetailSerializer,CustomUserUpdateSerializer,ImageSerializer,FriendshipSerializer,CustomUserSerializer
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
-import random
-from django.core.mail import send_mail
-from django.conf import settings
-from .models import CustomUser,Friendship
+from .models import CustomUser, Friendship, Image
 from .permissions import IsUser
-import base64
-from django.core.files.base import ContentFile
+from .serializers import (
+    CustomUserSerializer, CustomUserUpdateSerializer,
+    ForgotPasswordSerializer, FriendshipSerializer,
+    ImageSerializer, ResetPasswordSerializer, UserDetailSerializer,
+    UserSerializer,
+)
+
+
 otp_storage={}
 class UserRegistrationAPIView(APIView):
     def post(self, request):
@@ -181,3 +195,66 @@ class FriendSuggestionAPIView(APIView):
         # Serialize thông tin người dùng và trả về
         serializer = CustomUserSerializer(suggested_users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+
+@api_view(['POST'])
+def forgot_password_view(request):
+    serializer = ForgotPasswordSerializer(data=request.data)
+    if serializer.is_valid():
+        email = serializer.validated_data['email']
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({"message": "User not found for the provided email"},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        # Generate reset token
+        try:
+        # refresh = RefreshToken.for_user(user)
+        # # reset_token = str(refresh.access_token)
+            data={"email":user.email}
+            token=dumps(data, key=settings.SECURITY_PASSWORD_SALT)
+
+        except TokenError as e:
+            return Response({"error": "Failed to generate reset token",
+                            "status": status.HTTP_500_INTERNAL_SERVER_ERROR},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        email_subject = "Password Reset Request"
+        email_message = f"Here's an email about forgetting the password for account: {user.email} \n "
+        email_message += f"Click the following link to reset your password: {settings.BACKEND_URL}/api/forgot/reset-password/{token}"
+
+        send_mail(
+            email_subject,
+            email_message,
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+        )
+
+        return Response({"message": "Password reset email sent successfully",
+                        "status": status.HTTP_200_OK},
+                        status=status.HTTP_200_OK)
+   
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def reset_password_view(request, token):
+    serializer = ResetPasswordSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        email = loads(token, key=settings.SECURITY_PASSWORD_SALT)["email"]
+        user = CustomUser.objects.get(email=email)
+    except (TypeError, ValueError, OverflowError, CustomUser.DoesNotExist):
+        return Response({"error": "Invalid reset token",
+                         "status": status.HTTP_400_BAD_REQUEST},
+                        status=status.HTTP_400_BAD_REQUEST)
+    new_password = serializer.validated_data['password']
+    if not new_password:
+        raise ValidationError("New password is required")
+    user.set_password(new_password)
+    user.save()
+
+    return Response({"message": "Password reset successfully",
+                     "status": status.HTTP_200_OK},
+                    status=status.HTTP_200_OK)
