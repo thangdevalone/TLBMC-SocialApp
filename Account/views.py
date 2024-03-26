@@ -1,5 +1,6 @@
-import json
+
 import re
+
 from django.shortcuts import render
 # Create your views here.
 from rest_framework import status,serializers,permissions
@@ -31,6 +32,38 @@ from rest_framework.exceptions import ValidationError
 from django.core.signing import dumps,loads
 from django.contrib.auth.hashers import check_password
 
+from django.db.models import Q
+
+# Create your views her
+import base64
+from random import sample, random
+from django.conf import settings
+from django.contrib.auth import authenticate
+from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
+from django.core.serializers import serialize
+from django.core.signing import dumps, loads
+from django.http import JsonResponse
+from django.core.files.base import ContentFile
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+from rest_framework_simplejwt.tokens import RefreshToken
+from .models import CustomUser, Friendship, Image
+from .permissions import IsUser
+from .serializers import (
+    CustomUserSerializer, CustomUserUpdateSerializer,
+    ForgotPasswordSerializer, FriendshipSerializer,
+    ImageSerializer, ResetPasswordSerializer, UserDetailSerializer,
+    UserSerializer,
+)
+
+
+
 otp_storage={}
 class UserRegistrationAPIView(APIView):
     def post(self, request):
@@ -48,7 +81,7 @@ class UserRegistrationAPIView(APIView):
                 user = serializer.save()
                 refresh = RefreshToken.for_user(user)
                 data=UserDetailSerializer(user)
-                return Response({'data': data.data, 'token': {
+                return Response({'data': data.data, 'tokens': {
                     'refresh': str(refresh),
                     'access': str(refresh.access_token),
                 }}, status=status.HTTP_201_CREATED)
@@ -93,7 +126,7 @@ class UserLoginAPIView(APIView):
         else:
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 class CustomUserUpdateAPIView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsUser]
 
     def patch(self, request):
         serializer = CustomUserUpdateSerializer(request.user, data=request.data, partial=True)
@@ -126,6 +159,75 @@ class UploadRelatedImageView(APIView):
                 return Response(user_serializer.data['related_images'], status=status.HTTP_201_CREATED)
             return Response(image_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         return Response({'error': 'No image data provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+class FriendshipRequestListAPIView(APIView):
+    def get(self, request):
+        user = request.user
+        friendship_requests = Friendship.objects.filter(to_user=user, status='pending')
+        serializer = FriendshipSerializer(friendship_requests, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        # Trích xuất id của người dùng muốn kết bạn từ dữ liệu gửi lên
+        friend_id = request.data.get('friend_id')
+
+        # Kiểm tra xem id của người bạn có hợp lệ không
+        try:
+            friend = CustomUser.objects.get(pk=friend_id)
+        except CustomUser.DoesNotExist:
+            return Response({'message': 'Người dùng không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Tạo một mối quan hệ bạn bè mới với trạng thái là 'pending'
+        friendship_request = Friendship(from_user=request.user, to_user=friend, status='pending')
+        friendship_request.save()
+
+        # Trả về thông điệp xác nhận hoặc thông báo lỗi nếu có
+        return Response({'message': 'Lời mời kết bạn đã được gửi đi'}, status=status.HTTP_201_CREATED)
+
+    def put(self, request):
+        try:
+            friendship_request = Friendship.objects.get( request.data.get('from_id'))
+        except Friendship.DoesNotExist:
+            return Response({'message': 'Yêu cầu kết bạn không tồn tại'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Kiểm tra xem người dùng hiện tại có phải là người nhận lời mời kết bạn không
+        if request.user != friendship_request.to_user:
+            return Response({'message': 'Bạn không có quyền cập nhật yêu cầu kết bạn này'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Lấy trạng thái mới từ dữ liệu gửi lên
+        new_status = request.data.get('status')
+
+        # Kiểm tra xem trạng thái mới có hợp lệ không
+        if new_status not in dict(Friendship.STATUS_CHOICES).keys():
+            return Response({'message': 'Trạng thái không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Cập nhật trạng thái và lưu vào cơ sở dữ liệu
+        friendship_request.status = new_status
+        friendship_request.save()
+
+        # Trả về thông điệp xác nhận
+        return Response({'message': 'Trạng thái đã được cập nhật'}, status=status.HTTP_200_OK)
+    
+class FriendSuggestionAPIView(APIView):
+    def get(self, request):
+        # Lấy danh sách tất cả người dùng trừ người dùng hiện tại
+        users = CustomUser.objects.exclude(pk=request.user.id)
+        
+        # Loại bỏ những người đã gửi lời mời hoặc là bạn bè của người dùng hiện tại
+        excluded_users = Friendship.objects.filter(
+            Q(from_user=request.user) | Q(to_user=request.user),
+            status__in=['pending', 'accepted']
+        ).values_list('from_user', 'to_user')
+        excluded_user_ids = [user_id for friendship in excluded_users for user_id in friendship if user_id != request.user.pk]
+        users = users.exclude(pk__in=excluded_user_ids)
+        
+        # Chọn ngẫu nhiên n người dùng từ danh sách (n là số lượng người dùng hiện có hoặc 10, tùy thuộc vào số lượng)
+        n = min(10, len(users))
+        suggested_users = sample(list(users), n)
+
+        # Serialize thông tin người dùng và trả về
+        serializer = CustomUserSerializer(suggested_users, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
 
 
@@ -154,7 +256,7 @@ def forgot_password_view(request):
 
         email_subject = "Password Reset Request"
         email_message = f"Here's an email about forgetting the password for account: {user.email} \n "
-        email_message += f"Click the following link to reset your password: {settings.BACKEND_URL}/api/forgot/reset-password/{token}"
+        email_message += f"Click the following link to reset your password: {settings.BACKEND_URL}/forgot/reset-password/{token}"
 
         send_mail(
             email_subject,
@@ -183,14 +285,13 @@ def reset_password_view(request, token):
     new_password = serializer.validated_data['password']
     if not new_password:
         raise ValidationError("New password is required")
-    hashed_password = make_password(new_password)
     user.set_password(new_password)
     user.save()
-    refresh = RefreshToken.for_user(user)
 
     return Response({"message": "Password reset successfully",
                      "status": status.HTTP_200_OK},
                     status=status.HTTP_200_OK)
+
     
 def strong_password(password):
     print(password)
@@ -232,3 +333,4 @@ def change_password(request, pk):
     return Response({'success': False, 'message': 'Invalid request method.',
                      "status": status.HTTP_400_BAD_REQUEST},
                     status=status.HTTP_400_BAD_REQUEST)
+

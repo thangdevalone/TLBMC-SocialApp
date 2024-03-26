@@ -52,7 +52,6 @@ class PostCreateSerializer(serializers.ModelSerializer):
         model = Post
         fields = ['content', 'global_post']
 
-
 class WallSerializer(serializers.ModelSerializer):
     class Meta:
         model = Wall

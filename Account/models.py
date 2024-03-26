@@ -82,3 +82,14 @@ class Image(models.Model):
     pos=models.IntegerField()
     def __str__(self):
         return self.image.name
+    
+class Friendship(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Chờ đồng ý'),
+        ('accepted', 'Bạn bè'),
+        ('cancelled', 'Hủy kết bạn'),
+    )
+
+    from_user = models.ForeignKey(CustomUser, related_name='friendship_creator_set', on_delete=models.CASCADE)
+    to_user = models.ForeignKey(CustomUser, related_name='friend_set', on_delete=models.CASCADE)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')

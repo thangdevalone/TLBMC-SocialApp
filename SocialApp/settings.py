@@ -28,7 +28,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     '14.225.217.195',
     'api-tlbmc.thangdev.online',
-    "127.0.0.1"
+    '127.0.0.1'
 ]
 
 
@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'Account',
     'NewFeeds',
     "MessengerChat",
+    "Course",
     
 ]
 from datetime import timedelta
@@ -166,4 +167,6 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 BACKEND_URL = "http://127.0.0.1:8000"
+FE_URL = "https://tlbmc.thangdev.online"
+
 SECURITY_PASSWORD_SALT="abcd"
