@@ -10,5 +10,4 @@ urlpatterns = [
     path("forgot/forgot-password", forgot_password_view, name="forgot_password"),
     path("forgot/reset-password/<str:token>", reset_password_view, name="reset_password"),
     path("account/change-password/<str:pk>",change_password, name="change-password"),
-
 ]
