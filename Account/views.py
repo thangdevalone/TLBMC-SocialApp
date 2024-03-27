@@ -146,12 +146,10 @@ class CustomUserUpdateAPIView(APIView):
             data['profile_picture'] = ContentFile(base64.b64decode(imgstr), name=f'user_profile.{ext}')
 
         # Update user instance with new data
-        serializer = CustomUserSerializer(user, data=data, partial=True)
+        serializer = UserDetailSerializer(user)
         if serializer.is_valid():
             serializer.save()
-            user_data = CustomUser.objects.get(id=user_id)
-            user_serializer = UserDetailSerializer(user_data)
-            return Response(user_serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class UploadRelatedImageView(APIView):
