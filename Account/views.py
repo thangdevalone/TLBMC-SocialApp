@@ -15,7 +15,6 @@ from .permissions import IsOwnerOrReadonly
 from django.core.mail import send_mail
 from django.conf import settings
 from .models import CustomUser,Image,CustomUserManager
-from .permissions import IsAdminUser
 import base64
 from django.core.files.base import ContentFile
 from django.conf import settings
