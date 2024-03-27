@@ -129,7 +129,7 @@ class CustomUserUpdateAPIView(APIView):
 
     def patch(self, request):
         # Get the user object to update
-        user_id = request.data.get('id')  # Assuming 'id' is sent in the request data
+        user_id = request.user.id  # Assuming 'id' is sent in the request data
         try:
             user = CustomUser.objects.get(id=user_id)
         except CustomUser.DoesNotExist:
