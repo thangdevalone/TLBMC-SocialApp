@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model
 from .permissions import IsOwnerOrReadonly
 from django.core.mail import send_mail
 from django.conf import settings
-from .models import CustomUser,Image,CustomUserManager
+from .models import CustomUser
 import base64
 from django.core.files.base import ContentFile
 from django.conf import settings
