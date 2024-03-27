@@ -4,7 +4,7 @@ from django.db.models import Q
 
 # Create your views her
 import base64
-from random import sample, random
+from random import sample
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
@@ -29,7 +29,7 @@ from .serializers import (
     ImageSerializer, ResetPasswordSerializer, UserDetailSerializer,
     UserSerializer,
 )
-
+import random
 
 otp_storage={}
 class UserRegistrationAPIView(APIView):
