@@ -128,10 +128,30 @@ class CustomUserUpdateAPIView(APIView):
     permission_classes = [IsUser]
 
     def patch(self, request):
-        serializer = CustomUserUpdateSerializer(request.user, data=request.data, partial=True)
+        # Get the user object to update
+        user_id = request.data.get('id')  # Assuming 'id' is sent in the request data
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Deserialize data
+        data = request.data.copy()
+
+        # Handle image conversion
+        if 'profile_picture' in data:
+            profile_picture_base64 = data.pop('profile_picture')
+            format, imgstr = profile_picture_base64.split(';base64,')
+            ext = format.split('/')[-1]
+            data['profile_picture'] = ContentFile(base64.b64decode(imgstr), name=f'user_profile.{ext}')
+
+        # Update user instance with new data
+        serializer = CustomUserSerializer(user, data=data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            user_data = CustomUser.objects.get(id=user_id)
+            user_serializer = UserDetailSerializer(user_data)
+            return Response(user_serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class UploadRelatedImageView(APIView):
