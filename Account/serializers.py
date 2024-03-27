@@ -101,6 +101,7 @@ class ResetPasswordSerializer(serializers.Serializer):
 
         return data
 class User2Serializer(serializers.ModelSerializer):
+    skills = serializers.CharField(required=False) 
     class Meta:
         model = CustomUser
         fields = ['id', 'email', 'profile_picture', 'full_name', 'date_of_birth', 'phone_number', 'address', 'facebook', 'instagram', 'linkedin', 'education', 'work_experience', 'skills', 'activities', 'certificates', 'awards']
