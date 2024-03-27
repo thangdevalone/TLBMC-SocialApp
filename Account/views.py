@@ -6,7 +6,7 @@ from django.shortcuts import render
 from rest_framework import status,serializers,permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import UserSerializer,UserDetailSerializer,CustomUserUpdateSerializer,ImageSerializer
+from .serializers import UserSerializer,UserDetailSerializer,User2Serializer,ImageSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 import random
@@ -18,13 +18,9 @@ from .models import CustomUser
 import base64
 from django.core.files.base import ContentFile
 from django.conf import settings
-from django.core.serializers import serialize
-from django.http import JsonResponse
 from rest_framework.decorators import api_view,permission_classes
 from .serializers import ForgotPasswordSerializer,ResetPasswordSerializer
-from django.core.serializers.json import DjangoJSONEncoder
 from rest_framework.permissions import AllowAny
-from django.contrib.auth.hashers import make_password
 from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from rest_framework.exceptions import ValidationError
@@ -146,7 +142,7 @@ class CustomUserUpdateAPIView(APIView):
             data['profile_picture'] = ContentFile(base64.b64decode(imgstr), name=f'user_profile.{ext}')
 
         # Update user instance with new data
-        serializer = UserDetailSerializer(user)
+        serializer = User2Serializer(user, data=data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
